@@ -1,0 +1,12 @@
+Consulta PRD-050-DB\APP - GestaoSS
+  SELECT
+  F.Login as usuario,
+  F.CPF as cpf,
+  F.Nome as Nome,
+  U.NomeFantasia as unidade,
+  C.Nome as cargo,
+  CASE WHEN [F].[Login] IS NOT NULL THEN CONCAT([f].[Login], '@sestsenat.org.br') END AS [Email]
+  FROM [GestaoSS].[dbo].[Funcionario] AS F
+  INNER JOIN [GestaoSS].[dbo].[Cargo] AS C ON F.IdCargo=C.IdCargo
+  INNER JOIN [GestaoSS].[dbo].[Unidade] AS U ON F.IdUnidade=U.IdUnidade
+  ORDER BY usuario;
