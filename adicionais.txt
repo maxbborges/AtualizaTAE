@@ -1,12 +1,18 @@
-Consulta PRD-050-DB\APP - GestaoSS
-  SELECT
+SELECT
   F.Login as usuario,
   F.CPF as cpf,
   F.Nome as Nome,
   U.NomeFantasia as unidade,
-  C.Nome as cargo,
+  CASE WHEN C.Nome IS NULL THEN 'CARGO' ELSE C.Nome END AS [cargo],
   CASE WHEN [F].[Login] IS NOT NULL THEN CONCAT([f].[Login], '@sestsenat.org.br') END AS [Email]
   FROM [GestaoSS].[dbo].[Funcionario] AS F
-  INNER JOIN [GestaoSS].[dbo].[Cargo] AS C ON F.IdCargo=C.IdCargo
-  INNER JOIN [GestaoSS].[dbo].[Unidade] AS U ON F.IdUnidade=U.IdUnidade
+  LEFT JOIN [GestaoSS].[dbo].[Cargo] AS C ON F.IdCargo=C.IdCargo
+  LEFT JOIN [GestaoSS].[dbo].[Unidade] AS U ON F.IdUnidade=U.IdUnidade
+  WHERE F.Ativo=1
   ORDER BY usuario;
+
+
+  ----
+  BASE CSV
+  usuario,cpf,Nome,unidade,cargo,Email
+  replace ; por ,

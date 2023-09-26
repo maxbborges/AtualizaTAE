@@ -69,7 +69,6 @@ def recuperarDocUnico(idTAE):
     rReq = json.loads((rreq).text)
     if(rReq['success']):
         print("recuperarDocUnico(): "+str(rReq['success']))
-        print(rReq['data'])
         # print('ID: '+str(rReq['data']['id'])+' - TM: '+str(rReq['data']['tamanhoArquivo']))
 
     else:
@@ -96,7 +95,7 @@ def recuperarListaUsuarios():
 
     rrReq = json.loads((rrre).text)
     if(rrReq['succeeded']):
-        print("recuperarListaUsuarios(): "+str(rrReq['succeeded']))
+        print("recuperarListaUsuarios(): "+str(rrReq['succeeded'])+str(len(rrReq['data']['registro'])))
         return rrReq
         # print(rrReq['data'])
         # print('ID: '+str(rReq['data']['id'])+' - TM: '+str(rReq['data']['tamanhoArquivo']))
@@ -136,15 +135,21 @@ def recuperarDocLista(token):
 # ------------------------------------------------------------------
 def dadosUsuario(usuario,emailCheck,cpfCheck):
     listaUsuarios=[]
+
+    if (cpfCheck=='67611150600'):
+        return []
     with open('usuariosSS.csv', newline='', encoding='utf-8-sig') as csvfile:
         reader = csv.DictReader(csvfile)
         
         for row in reader:
+            emailCorreto=row['Email'].lower()
             if (usuario):
-                if (usuario!=(row['Email'].lower()) and usuario!=(row['cpf'].replace('.','').replace('-',''))):
+                # if ("@itl.org.br" in usuario):
+                    # emailCorreto=emailCorreto.replace('@sestsenat.org.br','@itl.org.br')
+                if (usuario!=emailCorreto and usuario!=(row['cpf'].replace('.','').replace('-',''))):
                     continue
             
-            if (row['Email'].lower()!=emailCheck):
+            if (emailCorreto!=emailCheck):
                 print('>>EMAIL INVALIDO: '+usuario)
                 return []
             if (row['cpf'].replace('.','').replace('-','')!=cpfCheck):
@@ -194,30 +199,91 @@ def outros(rReq2,atualizaCargo,grupo,filtroUsuarioEmail):
             continue
 
         if len(i['cpf'])!=11:
-            cont+=1
+            if (i['userName']=='ponto.dn128@sestsenat.org.br' or i['userName']=='pontoeletronico@sestsenat.org.br'):
+                    print("EMAIL PADRÂO: "+i['userName']+" "+str(i['cpf']))
+            else:
+                print("CPF INVALIDO "+i['userName'])
+            continue
         if vPosition=='' or vPosition==None:
             vPosition='SEM CARGO'
         
         fn = i['phoneNumber'] if i['phoneNumber']!=None else ''
         userName = i['userName']
         validEmail= i['userName']
-        if ("@itl.org.br" in userName):
-            userName=i['cpf']
-            validEmail=validEmail.replace('@itl.org.br','@sestsenat.org.br')
 
         if (atualizaCargo):
             du=dadosUsuario(userName,validEmail,i['cpf'])
             if (len(du)>0):
                 UArq=du[0]['unidade']
                 CUArq=du[0]['CargoUnidade']
-                CArq=du[0]['cargo']
-                edit=False
+                CArq=du[0]['cargo'].replace(" II","").replace(" I","")
 
+                siglaUnidade=''
+                edit=False
                 
-                if((UArq=="DEX" or CArq=='DIRETOR DE UNIDADE' or CArq=='COORDENADOR DE ADMINISTRACAO E FINANCAS' or CArq=='COORDENADOR DE DESENVOLVIMENTO PROFISSIONAL' or CArq=='COORDENADOR DE PROMOCAO SOCIAL') and i['isPublisher']==False):
-                    print(UArq + ' ' + CArq)
-                    i['isPublisher']=True
-                    edit=True
+                if (UArq!='DEX'):
+                    siglaUnidade=UArq.replace("Unidade","")[0]
+                    # print(CArq)
+                    # print(siglaUnidade)
+                
+                usuariosLiberados=[
+                    'joicepadilha@sestsenat.org.br',
+                    'alexandrapereira@sestsenat.org.br',
+                    'marianascimento@sestsenat.org.br',
+                    'josianefarias@sestsenat.org.br',
+                    'pollyanalazzarin@sestsenat.org.br',
+                    'jacquelinesantos@sestsenat.org.br',
+                    'luizmarcos@sestsenat.org.br',
+                    'cylmarabrito@sestsenat.org.br',
+                    'chaianabrustolin@sestsenat.org.br',
+                    'gleisonsilva@sestsenat.org.br',
+                    'priscilacosta@sestsenat.org.br',
+                    'daianawalter@sestsenat.org.br',
+                    'mariliaschneider@sestsenat.org.br',
+                    'katiaramos@sestsenat.org.br',
+                    'alexandrecarmo@sestsenat.org.br',
+                    'janeassis@sestsenat.org.br',
+                    'amandacavalcanti@sestsenat.org.br'
+                ]
+
+                usuariosSemCargoLiberado=[
+                    'anaduque@sestsenat.org.br',
+                    'andrezanola@sestsenat.org.br',
+                    'claudiocabral@sestsenat.org.br',
+                    'nadiescasouza@sestsenat.org.br',
+                    'renatomacedo@sestsenat.org.br'
+                ]
+
+                if (userName in usuariosSemCargoLiberado):
+                    CArq="DIRETOR DE UNIDADE"
+                    CUArq=CArq+" ("+UArq+")" 
+
+               
+                if(UArq=="DEX" or CArq=='DIRETOR DE UNIDADE' or CArq=='COORDENADOR DE ADMINISTRACAO E FINANCAS' or CArq=='COORDENADOR DE DESENVOLVIMENTO PROFISSIONAL' or CArq=='COORDENADOR DE PROMOCAO SOCIAL' or CArq=='GERENTE DE UNIDADE'):
+                    if(i['isPublisher']==False):
+                        print(UArq + ' ' + CArq)
+                        i['isPublisher']=True
+                        edit=True
+                elif("TECNICO" in CArq):
+                    if (siglaUnidade=="D" and i['isPublisher']==False):
+                        print(CArq + " - "+siglaUnidade)
+                        i['isPublisher']=True
+                        edit=True
+                elif(i['userName'] in usuariosLiberados):
+                    if(i['isPublisher']==False):
+                        i['isPublisher']=True
+                        edit=True
+                elif(CArq=='CARGO'):
+                    if (i['lockoutEnabled']==False):
+                        print("> "+ userName)
+                        i['lockoutEnabled']=True
+                        edit=True
+                else:
+                    if(i['isPublisher']==True):
+                        i['isPublisher']=False
+                        edit=True
+                        print(">>> "+siglaUnidade+" - "+CArq)
+
                 if(vPosition!=CUArq or edit):
                     i['position'] = CUArq
                     req = {}
@@ -235,7 +301,8 @@ def outros(rReq2,atualizaCargo,grupo,filtroUsuarioEmail):
                             "phoneNumber":fn,
                             "position": CUArq,
                             "isPublisher":i['isPublisher'],
-                            "isAdministrator":i["isAdministrator"]
+                            "isAdministrator":i["isAdministrator"],
+                            "isDisabled":i['lockoutEnabled']
                         }
                     }
                     rreq = requests.put(**req)
@@ -243,12 +310,14 @@ def outros(rReq2,atualizaCargo,grupo,filtroUsuarioEmail):
                         ntoken = gerarToken(token)
                         req['headers']['authorization'] = "Bearer "+ntoken
                         rreq = requests.get(**req)
-
                     rReq = json.loads((rreq).text)
                     if(rReq['succeeded']):
                         print(i['userName']+' : '+rReq['description'])
             else:
-                print('USUARIO NÃO LOCALIZADO: '+i['email']+' '+i['cpf']+' '+i['fullName'])
+                if (i['cpf']=='67611150600'):
+                    print('Não atualizar: '+i['email']+' '+i['cpf']+' '+i['fullName'])
+                else:
+                    print('USUARIO NÃO LOCALIZADO: '+i['email']+' '+i['cpf']+' '+i['fullName'])
         
         reg = r'\([\s\S]*\)'
         cargo2 = re.sub(reg, '', i['position'])
@@ -314,16 +383,23 @@ def outros(rReq2,atualizaCargo,grupo,filtroUsuarioEmail):
         for indice,valor in enumerate(teste):
             valid=False
             if(valor['unidade']==value['localizacao']):
+                # print(str(indice) + ' ' + value['localizacao'] + '---')
+                # print(valor['envios'])
+                # print(tempAss)
+                # print(value['email'])
                 valor['usuarios'].append(value['email'])
                 valor['envios']=(valor['envios']+tempAss)
                 valid=True
+                break
 
             if (indice+1==len(teste) and not valid):
+                # print(str(indice) + ' ' + value['localizacao'])
                 teste.append({
                     'unidade':value['localizacao'],
                     'usuarios':[value['email']],
                     'envios':tempAss
                 })
+                # print(value['email'])
                 break
         
         if (len(teste)==0):
@@ -336,7 +412,16 @@ def outros(rReq2,atualizaCargo,grupo,filtroUsuarioEmail):
         
        
         # print(value['email'] + " " + str(tempDocs) + " " + str(tempAss) + " "+ value['localizacao'])
-    # print(teste)
+    def myFunc(e):
+        return e['unidade']
+    teste.sort(key=myFunc)
+
+    # for xx in teste:
+        # if (xx['unidade']=='B73'):
+            # print(xx['envios'])
+    teste1 = json.dumps(teste)
+    dff = pd.read_json(teste1)
+    dff.to_csv('file.csv')
     print("Total de Arquivos: "+str(totalArquivos))
     print("Total de Assinaturas: "+str(totalAssinaturas))
     print("Usuário com mais envio de documentos: "+usuarioComMaisUsoDocumento)
