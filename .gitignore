@@ -1,7 +1,13 @@
-usuariosSS.csv
-usuariosTAE.json
+log/_CONSUMO.csv
+log/_CPF_INVALIDO.txt
+log/_DESABILITADO.txt
+log/_NAO_LOCALIZADO.txt
+log/_usuariosTAE.json
+log/usuariosSS.csv
 .devcontainer
 TAE.xlsx
 .venv
 .env
 .vscode
+.github
+__pycache__

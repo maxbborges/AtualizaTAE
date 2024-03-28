@@ -20,7 +20,16 @@ warnings.filterwarnings('ignore')
 tipo = config('TIPO')
 login = config('LOGIN')
 senha = config('SENHA')
-token = ''
+_token = ''
+
+cpfInvalido='./log/_CPF_INVALIDO.txt'
+desabilitado='./log/_DESABILITADO.txt'
+naoLocalizado='./log/_NAO_LOCALIZADO.txt'
+contagemDeUso='./log/_CONSUMO.csv'
+usuariosTae='./log/_usuariosTAE.json'
+usuariosGestao='./log/usuariosSS.csv'
+assinaturas='./log/TAE.xlsx'
+liberadosPorChamado='./log/usuariosLiberados.json'
 
 if tipo == "prd":
 
@@ -45,7 +54,7 @@ def atualizaUsuario(i,CUArq,BASE_URL,fn):
         'headers': {
             "accept": "application/json",
             "content-type": "application/json",
-            "authorization": "Bearer "+token
+            "authorization": "Bearer "+_token
         },
         'verify':False,
         'json':{
@@ -102,9 +111,9 @@ def gerarToken():
     if rLogin['succeeded']:
         print("gerarToken(): "+str(rLogin['succeeded']))
         # replace_in_file('.env','TOKEN='+token,'TOKEN='+rLogin['data']['token'])
-        token = rLogin['data']['token']
+        _token = rLogin['data']['token']
         # os.environ['TOKEN'] =rLogin['data']['token']
-        return token
+        return _token
     else:
         print("ERRO TOKEN")
         print(rLogin['description'])
@@ -119,7 +128,7 @@ def recuperarDocUnico(idTAE):
         'headers': {
             "accept": "application/json",
             "content-type": "application/json",
-            "authorization": "Bearer "+token
+            "authorization": "Bearer "+_token
         },
         'verify':False
     }
@@ -148,7 +157,7 @@ def recuperarListaUsuarios():
         'headers': {
             "accept": "application/json",
             "content-type": "application/json",
-            "authorization": "Bearer "+token
+            "authorization": "Bearer "+_token
         },
         'verify':False
     }
@@ -163,7 +172,7 @@ def recuperarListaUsuarios():
 
     rrReq = json.loads((rrre).text)
     if(rrReq['succeeded']):
-        with open('usuariosTAE.json', 'w', encoding='utf-8') as f:
+        with open(usuariosTae, 'w', encoding='utf-8') as f:
             json.dump(rrReq, f, ensure_ascii=False, indent=4)
         print("recuperarListaUsuarios(): "+str(rrReq['succeeded'])+str(len(rrReq['data']['registro'])))
         return rrReq
@@ -183,7 +192,7 @@ def recuperarDocLista():
         'headers': {
             "accept": "application/json",
             "content-type": "application/json",
-            "authorization": "Bearer "+token
+            "authorization": "Bearer "+_token
         },
         'json': {
             "pesquisarEmTodaEmpresa": True
@@ -213,20 +222,20 @@ def dadosUsuario(usuario,emailCheck,cpfCheck):
         return []
     info='usuario,cpf,Nome,unidade,cargo,Email\n'
     atualizar=False
-    Lines = open('usuariosSS.csv', 'r',encoding='utf-8-sig').readlines()
+    Lines = open(usuariosGestao, 'r',encoding='utf-8-sig').readlines()
     for linex in Lines:
         if not (info in linex):
             atualizar=True
         break
 
     if atualizar:
-        with open('usuariosSS.csv', 'r+',newline='',encoding='utf-8-sig') as file: 
+        with open(usuariosGestao, 'r+',newline='',encoding='utf-8-sig') as file: 
             file_data = file.read().replace(';',',')
             file.seek(0)
             file.write(info + file_data)
             file.close()
             
-    with open('usuariosSS.csv', newline='', encoding='utf-8-sig') as csvfile:
+    with open(usuariosGestao, newline='', encoding='utf-8-sig') as csvfile:
         reader = csv.DictReader(csvfile)
 
         for row in reader:
@@ -271,8 +280,9 @@ def dadosUsuario(usuario,emailCheck,cpfCheck):
 # ------------------------------------------------------------------
 def outros(atualizaListaUsuarios,atualizaCargo,grupo,filtroUsuarioEmail,recuperaDocs, recuperaDoc):
     """Function printing python version."""
+    global _token
     
-    if not (token): token=gerarToken() #Gera token de autenticação TAE
+    if not (_token): _token=gerarToken() #Gera token de autenticação TAE
     
     if recuperaDocs:
         recuperarDocLista()
@@ -286,16 +296,25 @@ def outros(atualizaListaUsuarios,atualizaCargo,grupo,filtroUsuarioEmail,recupera
     
     if not(rReq2):
         print("Carregando Arquivo")
-        f = open('usuariosTAE.json')
-        arqAssin = json.load(f)
-        f.close()
+        try:
+            f = open(usuariosTae)
+            arqAssin = json.load(f)
+            f.close()
+        except:
+            arqAssin = recuperarListaUsuarios()
     else:
         print("Abrindo usuários Online")
         arqAssin = rReq2
 
     usuariosUnidade = []
     cargosLista = []
-    file1 = open("myfile.txt", "a")  # append mode
+    file1 = open(cpfInvalido, "a")  # append mode
+    file1.write("\n\n"+(date.today()).strftime("%d/%m/%Y")+"\n")
+    file1.close()
+    file1 = open(naoLocalizado, "a")  # append mode
+    file1.write("\n\n"+(date.today()).strftime("%d/%m/%Y")+"\n")
+    file1.close()
+    file1 = open(desabilitado, "a")  # append mode
     file1.write("\n\n"+(date.today()).strftime("%d/%m/%Y")+"\n")
     file1.close()
     for i in arqAssin['data']['registro']:
@@ -322,13 +341,18 @@ def outros(atualizaListaUsuarios,atualizaCargo,grupo,filtroUsuarioEmail,recupera
                         atualizaUsuario(i,i['position'],BASE_URL,fn)
                     continue
                 print("CPF INVALIDO "+i['cpf']+">>>"+i['userName'])
-                file1 = open("myfile.txt", "a")  # append mode
+                file1 = open(cpfInvalido, "a")  # append mode
                 file1.write(i['userName']+"\n")
                 file1.close()
             continue
+
+        if i['lockoutEnabled']:
+            file1 = open(desabilitado, "a")  # append mode
+            file1.write(i['userName']+"\n")
+            file1.close()
         
-        if not atualizaCargo and i['lockoutEnabled']:
-            continue
+        # if not atualizaCargo:
+        #     continue
 
         if i['userName']=='ponto.a001@sestsenat.org.br':
             continue
@@ -375,7 +399,7 @@ def outros(atualizaListaUsuarios,atualizaCargo,grupo,filtroUsuarioEmail,recupera
                     # print(CArq)
                     # print(siglaUnidade)
 
-                usuariosLiberados = json.load(open('usuariosLiberados.json'))
+                usuariosLiberados = json.load(open(liberadosPorChamado))
 
                 usuariosSemCargoLiberado=[
                     'anaduque@sestsenat.org.br',
@@ -446,6 +470,9 @@ def outros(atualizaListaUsuarios,atualizaCargo,grupo,filtroUsuarioEmail,recupera
                         i['isPublisher']=False
                         print('USUARIO NÃO LOCALIZADO: '+i['email']+' '+i['cpf']+' '+i['fullName'])
                         CUArq=i['position']
+                        file1 = open(naoLocalizado, "a")  # append mode
+                        file1.write(i['userName']+"\n")
+                        file1.close()
                         i=atualizaUsuario(i,CUArq,BASE_URL,fn)
                 else:
                     print('EMAIL ITL')
@@ -485,7 +512,12 @@ def outros(atualizaListaUsuarios,atualizaCargo,grupo,filtroUsuarioEmail,recupera
     qtdAssinaturaUsuarioDocumento = 0
     qtdAssinaturaUsuarioAssinatura = 0
 
-    data2 = pd.DataFrame(pd.read_excel('TAE.xlsx'), columns=['AUTOR', 'ID.','DESTINATÁRIO','HASH','DATA DE CRIAÇÃO'])
+    try:
+        data2 = pd.DataFrame(pd.read_excel(assinaturas), columns=['AUTOR', 'ID.','DESTINATÁRIO','HASH','DATA DE CRIAÇÃO'])
+    except Exception as e:
+        print(e)
+        print('Arquivo TAE não encontrado')
+        exit()
     hashAnterior=0
 
     teste = []
@@ -560,7 +592,7 @@ def outros(atualizaListaUsuarios,atualizaCargo,grupo,filtroUsuarioEmail,recupera
     print('-------')
     teste1 = json.dumps(teste)
     dff = pd.read_json(teste1)
-    dff.to_csv('file.csv')
+    dff.to_csv(contagemDeUso)
     print("Total de Arquivos: "+str(total_arquivos))
     print("Total de Assinaturas: "+str(total_assinaturas))
     print("Usuário com mais envio de documentos: "+usuarioComMaisUsoDocumento)
@@ -570,11 +602,9 @@ def outros(atualizaListaUsuarios,atualizaCargo,grupo,filtroUsuarioEmail,recupera
     print("Qtd de assinaturas do usuário: "+str(qtdAssinaturaUsuarioAssinatura))
     print("Qtd usuários selecionados: "+str(len(usuariosUnidade)))
     
-
-
-atualizaCargo = False #Atualiza os cargos na plataforma TAE
+atualizaCargo = True #Atualiza os cargos na plataforma TAE
 recuperarTodos = True #Atualiza a lista de envios por UNIDADEs E DEX (TRUE) / UNIDADES (FALSE)
-atualizaListaUsuarios = False #Atualiza arquivo local com usuários cadastrados
+atualizaListaUsuarios = True #Atualiza arquivo local com usuários cadastrados
 recuperaDocs = False #Recupera a lista de todos os documentos
 recuperaDoc = False #Recupera um documento Especifico
 filtroUsuarioEmail='' #Filtra informações de um usuário específico
