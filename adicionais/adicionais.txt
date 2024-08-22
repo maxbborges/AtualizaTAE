@@ -11,6 +11,25 @@ SELECT
   WHERE F.Ativo=1
   ORDER BY usuario;
 
+  ----
+  SELECT
+	REPLACE(tblADSI.mail,'@sestsenat.org.br','') as usuario,
+	tblADSI.EmployeeID as CPF,
+	tblADSI.Name as Nome,
+	tblADSI.physicalDeliveryOfficeName as unidade,
+	tblADSI.title as cargo,
+	tblADSI.mail as Email
+FROM
+    OPENQUERY
+        (ADSI,
+         'SELECT mail, Name,EmployeeID, title, physicalDeliveryOfficeName
+    FROM  ''LDAP://sestsenat.org.br'' 
+    WHERE objectClass =  ''User'' AND objectCategory = ''Person'' AND 
+	(USERACCOUNTCONTROL = 512)'
+        ) AS tblADSI
+WHERE
+    EmployeeID IS NOT NULL;
+
 
   ----
   BASE CSV
