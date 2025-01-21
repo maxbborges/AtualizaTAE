@@ -33,6 +33,7 @@ assinaturas='./log/TAE.xlsx'
 liberadosPorChamado='./log/usuariosLiberados.json'
 reusoEmails='./log/_REUSO_EMAILS.json'
 # corrigirCPF='./log/CORRIGIR_CPF.txt'
+log_novo='./log/_log_novo.json'
 
 if tipo == "prd":
 
@@ -48,8 +49,13 @@ def replace_in_file(file_path, search_text, new_text):
             new_line = line.replace(search_text, new_text)
             print(new_line, end='')
 # ------------------------------------------------------------------
-def atualizaUsuario(i,CUArq,BASE_URL,fn):
+def atualizaUsuario(i,CUArq,BASE_URL,fn,acao='INDEFINIDA'):
     print("---- ATUALIZA_USUARIO")
+    
+    file1 = open(log_novo, "a")  # append mode
+    file1.write(i['userName']+" -- "+ acao + "\n")
+    file1.close()
+    
     """Function printing python version."""
     i['position'] = CUArq
     GroupRoles=[]
@@ -75,7 +81,8 @@ def atualizaUsuario(i,CUArq,BASE_URL,fn):
             "position": CUArq,
             "isPublisher":i['isPublisher'],
             "GroupRoles":GroupRoles,
-            "isDisabled":i['lockoutEnabled']
+            "isDisabled":i['lockoutEnabled'],
+            "cpf":i['cpf']
         }
     }
 
@@ -109,9 +116,82 @@ def atualizaUsuario(i,CUArq,BASE_URL,fn):
     except:
         print("deu ERRO!")
         exit()
-        
+# ------------------------------------------------------------------
+def duplicarAgenda():
+    usuarioOrigem = 'michellefragoso@sestsenat.org.br'
+    senhaUsuarioOrigem = 'T994844e*'
+    usuarioDestino = 'marianaferreira@sestsenat.org.br'
+    senhaUsuarioDestino = '99758102Ma*'
+    nToken = gerarToken(usuarioOrigem,senhaUsuarioOrigem)
+    
+    req = {}
+    req = {
+        'url': BASE_URL+'contact/v2/contatos?desagrupados=false',
+        'headers': {
+            "accept": "application/json",
+            "content-type": "application/json",
+            "authorization": "Bearer "+nToken
+        },
+    }
 
-def gerarToken():
+    contatos = []
+    
+    try:
+        rreq = requests.get(**req,timeout=500)
+        rReq = json.loads((rreq).text)
+        if(rReq['success']):
+            contatos = rReq['data']
+            
+    except Exception as e:
+        print("deu ERRO!")
+        print(e)
+        exit()
+    except:
+        print("deu ERRO!")
+        exit()
+        
+    nToken = gerarToken(usuarioDestino,senhaUsuarioDestino)
+    # nToken = gerarToken()
+    qtdCopiados = 0
+        
+    for contato in contatos:
+        req = {}
+        req = {
+            'url': BASE_URL+'contact/v1/contatos',
+            'headers': {
+                "accept": "application/json",
+                "content-type": "application/json",
+                "authorization": "Bearer "+nToken
+            },
+            'json':{
+                "nomeCompleto":contato['nomeCompleto'],
+                "email": contato['email'],
+                "acao":0
+            }
+        }
+        
+        try:
+            rreq = requests.post(**req,timeout=500)
+            rReq = json.loads((rreq).text)
+            
+            if(rReq['success']):
+                qtdCopiados+=1
+                print(rReq['data']['nomeCompleto'])
+        except Exception as e:
+            print("deu ERRO2!")
+            print(e)
+            exit()
+        except:
+            if (rReq['errors']==['Email informado já existe na sua agenda']):
+                continue
+            else:
+                print(rReq)
+                print("deu ERRO1!")
+                exit()
+        
+    print(qtdCopiados)
+# ------------------------------------------------------------------
+def gerarToken(usuario=login,passw=senha):
     """Function printing python version."""
     req = {}
     req = {
@@ -120,7 +200,7 @@ def gerarToken():
             "accept": "application/json",
             "content-type": "application/json"
         },
-        'json': {"userName": login, "password": senha},
+        'json': {"userName": usuario, "password": passw},
         'verify':False
     }
     rLogin = json.loads((requests.post(**req)).text)
@@ -190,7 +270,7 @@ def recuperarListaUsuarios():
     if(rrReq['succeeded']):
         with open(usuariosTae, 'w', encoding='utf-8') as f:
             json.dump(rrReq, f, ensure_ascii=False, indent=4)
-        print("recuperarListaUsuarios(): "+str(rrReq['succeeded'])+str(len(rrReq['data']['registro'])))
+        print(str(len(rrReq['data']['registro'])))
         return rrReq
         # print(rrReq['data'])
         # print('ID: '+str(rReq['data']['id'])+' - TM: '+str(rReq['data']['tamanhoArquivo']))
@@ -291,8 +371,9 @@ def listaIdsDocsPorUsuarioRemetente(emailRemetente):
     
     for id in idsArquivos:
         print(f'Baixando {id}...')
+        # 1=Documento Original, 2= Documento assinado (manifesto) , 3= Documento assinado com certificado, 4= Todos (zip)
         req = {
-            'url': f'{BASE_URL}documents/v1/publicacoes/{id}/download?tipoDownload=4',
+            'url': f'{BASE_URL}documents/v1/publicacoes/{id}/download?tipoDownload=2',
             'headers': {
                 "accept": "application/json",
                 "content-type": "application/json",
@@ -383,17 +464,18 @@ def dadosUsuario(usuario,emailCheck,cpfCheck):
 
     return listaUsuarios
 # ------------------------------------------------------------------
-def outros(atualizaListaUsuarios,atualizaCargo,grupo,filtroUsuarioEmail,recuperaDocs, recuperaDoc):
+def outros(atualizaListaUsuarios,atualizaCargo,grupo,filtroUsuarioEmail,recuperaDocs, recuperaDoc, duplicar_agenda):
     """Function printing python version."""
     global _token
     
     if not (_token): _token=gerarToken() #Gera token de autenticação TAE
     
+    if (duplicar_agenda):
+        duplicarAgenda()
+        exit()
+    
     if recuperaDocs:
-        # recuperarDocLista()
         listaIdsDocsPorUsuarioRemetente(filtroUsuarioEmail)
-
-    exit()
     
     if recuperaDoc:
         recuperarDocUnico(id)
@@ -427,7 +509,13 @@ def outros(atualizaListaUsuarios,atualizaCargo,grupo,filtroUsuarioEmail,recupera
     file1 = open(desabilitado, "a")  # append mode
     file1.write("\n\n"+(date.today()).strftime("%d/%m/%Y")+"\n")
     file1.close()
+    file1 = open(log_novo, "a")  # append mode
+    file1.write("\n\n"+(date.today()).strftime("%d/%m/%Y")+"\n")
+    file1.close()
+
+    qtdUsuarios = 0
     for i in arqAssin['data']['registro']:
+        atualizaCargoTemp=True
         vPosition = i['position']
 
         if filtroUsuarioEmail:
@@ -435,43 +523,33 @@ def outros(atualizaListaUsuarios,atualizaCargo,grupo,filtroUsuarioEmail,recupera
                 print("----- FILTRO_USUARIO_EMAIL")
             else:
                 continue
+        
+        if i['userName']=='jeffersonp@sestsenat.org.br':
+            continue
 
         if len(i['cpf'])!=11:
             print("----- CADASTRO_CNPJ")
-            if i['userName']=='pontoeletronico@sestsenat.org.br':
-                atualizaCargo=False
+            if i['userName']=='pontoeletronico@sestsenat.org.br' or i['userName']=='inteligencia@itl.org.br':
+                atualizaCargoTemp=False
                 # usuariosUnidade.append({'email':i['userName'],'localizacao':'PONTO'})
             else:
-                # print("CPF INVALIDO "+i['cpf']+">>>"+i['userName'])
                 if not (i['lockoutEnabled']):
-                    # print("DESABILITANDO>>>>")
                     print(i['userName'])
                     i['lockoutEnabled']=True
-                    atualizaUsuario(i,i['position'],BASE_URL,fn)
+                    atualizaUsuario(i,i['position'],BASE_URL,fn,'CPF_INVALIDO')
                     file1 = open(cpfInvalido, "a")  # append mode
                     file1.write(i['userName']+"\n")
                     file1.close()
-                    atualizaCargo=False
-                    
-                
-                # if (i['userName']=='evandrooliveira@sestsenat.org.br' or 
-                #     i['userName']=='liviaspadoni@sestsenat.org.br' or
-                #     i['userName']=='lauragrandizoli@sestsenat.org.br' or
-                #     i['userName']=='cezarjunior@sestsenat.org.br'):
-                #     print("DESABILITANDO>>>>")
-                #     if not (i['lockoutEnabled']):
-                #         i['lockoutEnabled']=True
-                #         atualizaUsuario(i,i['position'],BASE_URL,fn)
-                    
-                # print("CPF INVALIDO "+i['cpf']+">>>"+i['userName'])
+                    atualizaCargoTemp=False
+
                 file1 = open(cpfInvalido, "a")  # append mode
                 file1.write(i['userName']+"\n")
                 file1.close()
                 print(i['userName'])
-                atualizaCargo=False
+                atualizaCargoTemp=False
 
         if i['userName']=='ponto.a001@sestsenat.org.br':
-            atualizaCargo=False
+            atualizaCargoTemp=False
 
         if vPosition=='' or vPosition==None:
             vPosition='SEM CARGO'
@@ -480,10 +558,28 @@ def outros(atualizaListaUsuarios,atualizaCargo,grupo,filtroUsuarioEmail,recupera
         userName = i['userName']
         validEmail= i['userName']
         
-        if atualizaCargo:
-            if validEmail=='renatocarvalho2@sestsenat.org.br' or userName=='renatocarvalho2@sestsenat.org.br':
-                validEmail='renatocarvalho@sestsenat.org.br'
-                userName='renatocarvalho@sestsenat.org.br'
+        if atualizaCargo and atualizaCargoTemp:
+            if (qtdUsuarios==1000):
+                print(qtdUsuarios)
+                sleep(5)
+        
+            if (qtdUsuarios==3000):
+                print(qtdUsuarios)
+                sleep(5)
+            
+            if (qtdUsuarios==5000):
+                sleep(5)
+                print(qtdUsuarios)
+            
+            if (qtdUsuarios==7000):
+                sleep(5)
+                print(qtdUsuarios)
+            
+            qtdUsuarios+=1
+            
+            # if validEmail=='renatocarvalho2@sestsenat.org.br' or userName=='renatocarvalho2@sestsenat.org.br':
+                # validEmail='renatocarvalho@sestsenat.org.br'
+                # userName='renatocarvalho@sestsenat.org.br'
 
             if validEmail=='nadiescasouza@sestsenat.org.br' or userName=='nadiescasouza@sestsenat.org.br':
                 validEmail='nadiescaazeredo@sestsenat.org.br'
@@ -563,12 +659,13 @@ def outros(atualizaListaUsuarios,atualizaCargo,grupo,filtroUsuarioEmail,recupera
                         i['lockoutEnabled']=False
                         edit=True
                         paramEdit=paramEdit+'/CARGO/'
-                else:
-                    if i['isPublisher']:
-                        i['isPublisher']=False
-                        edit=True
-                        paramEdit=paramEdit+'/DESABILITAR-PUBLICADOR/'
-                        # print(">>> "+siglaUnidade+" - "+CArq)
+                # else:
+                #     if i['isPublisher']:
+                #         # i['isPublisher']=False
+                #         i['isPublisher']=True
+                #         edit=True
+                #         paramEdit=paramEdit+'/DESABILITAR-PUBLICADOR/'
+                #         # print(">>> "+siglaUnidade+" - "+CArq)
                 
                 if i['lockoutEnabled']:
                     print("DESABILITADO: ")
@@ -588,31 +685,28 @@ def outros(atualizaListaUsuarios,atualizaCargo,grupo,filtroUsuarioEmail,recupera
                     
 
                 if(vPosition!=CUArq or edit):
-                    # if not (edit):
-                    #     print(vPosition)
-                    #     print(CUArq)
-                    #     print("/NOME-CARGO/"+paramEdit)
-                    # if edit:
-                    #     print(paramEdit)
-                    i=atualizaUsuario(i,CUArq,BASE_URL,fn)
+                    if vPosition!=CUArq:
+                        paramEdit += '/NOME-CARGO/'
+                    i=atualizaUsuario(i,CUArq,BASE_URL,fn,paramEdit)
             else:
                 emailITL=i['email'].split('@itl.org.br')
+                emailReusado = json.load(open(reusoEmails))
                 # reativar = json.load(open("./log/REATIVAR.json"))
 
-                # if len(emailITL)==1 and i['email']!='pontoeletronico@sestsenat.org.br':
+                if len(emailITL)==1 and i['email']!='pontoeletronico@sestsenat.org.br' and i['email'] not in emailReusado:
                     # if (i['email'] in reativar and i['lockoutEnabled']==True):
                     #     print("Ativando: "+i['email'])
                     #     i['lockoutEnabled']=False
                     #     i=atualizaUsuario(i,CUArq,BASE_URL,fn)
-                    # if not (i['lockoutEnabled']==True):
-                    #     i['lockoutEnabled']=True
-                    #     i['isPublisher']=False
-                    #     print('USUARIO NÃO LOCALIZADO: '+i['email']+' '+i['cpf']+' '+i['fullName'])
-                    #     CUArq=i['position']
-                    #     file1 = open(naoLocalizado, "a")  # append mode
-                    #     file1.write(i['userName']+"\n")
-                    #     file1.close()
-                    #     i=atualizaUsuario(i,CUArq,BASE_URL,fn)
+                    if not (i['lockoutEnabled']==True) :
+                        i['lockoutEnabled']=True
+                        i['isPublisher']=False
+                        print('USUARIO NÃO LOCALIZADO: '+i['email']+' '+i['cpf']+' '+i['fullName'])
+                        CUArq=i['position']
+                        file1 = open(naoLocalizado, "a")  # append mode
+                        file1.write(i['userName']+"\n")
+                        file1.close()
+                        i=atualizaUsuario(i,CUArq,BASE_URL,fn,'USUARIO NÃO LOCALIZADO')
                 # else:
                     # print("----- ITL")
                     # print(i['email'])
@@ -762,30 +856,11 @@ def outros(atualizaListaUsuarios,atualizaCargo,grupo,filtroUsuarioEmail,recupera
     # print("Qtd de assinaturas do usuário: "+str(qtdAssinaturaUsuarioAssinatura))
     print("Qtd usuários selecionados: "+str(len(usuariosUnidade)))
     
-atualizaCargo = False #Atualiza os cargos na plataforma TAE
+atualizaCargo = True #Atualiza os cargos na plataforma TAE
 recuperarTodos = True #Atualiza a lista de envios por UNIDADEs E DEX (TRUE) / UNIDADES (FALSE)
-atualizaListaUsuarios = False #Atualiza arquivo local com usuários cadastrados
-recuperaDocs = True #Recupera a lista de todos os documentos
+atualizaListaUsuarios = True #Atualiza arquivo local com usuários cadastrados
+recuperaDocs = False #Recupera a lista de todos os documentos
 recuperaDoc = False #Recupera um documento Especifico
-filtroUsuarioEmail='deividaraujo@sestsenat.org.br'
-outros(atualizaListaUsuarios,atualizaCargo,recuperarTodos,filtroUsuarioEmail,recuperaDocs,recuperaDoc) #Chama a função principal
-
-# import xmltodict
-# import jsonf
-
-
-# def t():
-#     # Abrir o arquivo XML e ler seu conteúdo
-#     with open('testexml.xml', 'r') as arquivo_xml:
-#         # Converter XML para um dicionário Python
-#         dados_dict = xmltodict.parse(arquivo_xml.read())
-#     print(dados_dict["definition"]["mapping"]["metadatas"][0])
-#     # Converter o dicionário Python para JSON
-#     dados_json = json.dumps(dados_dict)
-#     # print()
-
-#     # Salvar os dados JSON em um arquivo
-#     with open('dados.json', 'w') as arquivo_json:
-#         arquivo_json.write(dados_json)
-
-# t()
+filtroUsuarioEmail=''
+duplicar_agenda = False
+outros(atualizaListaUsuarios,atualizaCargo,recuperarTodos,filtroUsuarioEmail,recuperaDocs,recuperaDoc, duplicar_agenda) #Chama a função principal

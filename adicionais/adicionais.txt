@@ -31,6 +31,10 @@ WHERE
     EmployeeID IS NOT NULL;
 
 
+ ----------
+ NOVA:
+ SELECT * FROM GestaoSS.dbo.FuncionariosAtivosAD where usuario is not null ORDER BY unidade, Nome ASC
+
   ----
   BASE CSV
   usuario,cpf,Nome,unidade,cargo,Email
